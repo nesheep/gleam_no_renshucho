@@ -3,12 +3,10 @@ import gleam/io
 import gleam/list
 import gleam/string
 
-const omit_newline_flag = "-n"
-
 pub fn main() {
   case argv.load().arguments {
     [] -> help()
-    args -> run(args)
+    args -> args |> parse_args |> run
   }
 }
 
@@ -16,16 +14,23 @@ fn help() {
   io.println("echog")
 }
 
-fn run(args: List(String)) {
-  let omit_newline = list.contains(args, omit_newline_flag)
+type Args {
+  Args(omit_newline: Bool, inputs: List(String))
+}
 
-  let outputs = case omit_newline {
+fn parse_args(args: List(String)) -> Args {
+  let omit_newline_flag = "-n"
+  let omit_newline = list.contains(args, omit_newline_flag)
+  let inputs = case omit_newline {
     True -> list.filter(args, fn(x) { x != omit_newline_flag })
     False -> args
   }
+  Args(omit_newline, inputs)
+}
 
-  let output = string.join(outputs, " ")
-  case omit_newline {
+fn run(args: Args) {
+  let output = string.join(args.inputs, " ")
+  case args.omit_newline {
     True -> io.print(output)
     False -> io.println(output)
   }
