@@ -20,7 +20,7 @@ fn run(args: List(String)) {
   let omit_newline = list.contains(args, omit_newline_flag)
 
   let outputs = case omit_newline {
-    True -> list.take_while(args, fn(x) { x != omit_newline_flag })
+    True -> list.filter(args, fn(x) { x != omit_newline_flag })
     False -> args
   }
 
