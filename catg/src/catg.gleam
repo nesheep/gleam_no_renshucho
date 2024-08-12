@@ -3,6 +3,7 @@ import file_streams/file_stream
 import file_streams/file_stream_error
 import gleam/io
 import gleam/list
+import gleam/result
 import glint
 
 pub fn main() {
@@ -22,13 +23,9 @@ fn run() -> glint.Command(Nil) {
     Error(err) -> print_err(err, filename)
     Ok(stream) -> {
       print_filesteam(stream)
-      case file_stream.close(stream) {
-        Error(err) -> {
-          io.debug(err)
-          Nil
-        }
-        Ok(_) -> Nil
-      }
+      file_stream.close(stream)
+      |> result.map_error(io.debug)
+      |> result.unwrap(Nil)
     }
   }
 }
@@ -45,10 +42,7 @@ fn print_err(err: file_stream_error.FileStreamError, filename: String) {
 fn print_filesteam(stream: file_stream.FileStream) {
   case file_stream.read_line(stream) {
     Error(file_stream_error.Eof) -> Nil
-    Error(err) -> {
-      io.debug(err)
-      Nil
-    }
+    Error(err) -> Error(err) |> result.map_error(io.debug) |> result.unwrap(Nil)
     Ok(line) -> {
       io.print(line)
       print_filesteam(stream)
