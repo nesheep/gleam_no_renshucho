@@ -27,16 +27,16 @@ fn print_files(files: List(String), number: Bool, start: Int) {
   case files {
     [] -> Nil
     [filename, ..rest] -> {
-      let last = case file_stream.open_read(filename) {
-        Error(err) -> print_err(err, filename) |> fn(_) { start - 1 }
+      case file_stream.open_read(filename) {
+        Error(err) -> print_err(err, filename) |> fn(_) { start }
         Ok(stream) -> {
           let last = print_filesteam(stream, number, start)
           file_stream.close(stream)
           |> result.map_error(io.debug)
-          |> fn(_) { last }
+          |> fn(_) { last + 1 }
         }
       }
-      print_files(rest, number, last + 1)
+      |> print_files(rest, number, _)
     }
   }
 }
