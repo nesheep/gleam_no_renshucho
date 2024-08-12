@@ -3,7 +3,6 @@ import file_streams/file_stream
 import file_streams/file_stream_error
 import gleam/int
 import gleam/io
-import gleam/list
 import gleam/result
 import gleam/string
 import glint
@@ -20,18 +19,24 @@ pub fn main() {
 fn run() -> glint.Command(Nil) {
   use number <- glint.flag(glint.bool_flag("number"))
   use _, args, flags <- glint.command()
-
   let number = number(flags) |> result.unwrap(False)
+  print_files(args, number, 1)
+}
 
-  use filename <- list.each(args)
-
-  case file_stream.open_read(filename) {
-    Error(err) -> print_err(err, filename)
-    Ok(stream) -> {
-      print_filesteam(stream, number)
-      file_stream.close(stream)
-      |> result.map_error(io.debug)
-      |> result.unwrap(Nil)
+fn print_files(files: List(String), number: Bool, start: Int) {
+  case files {
+    [] -> Nil
+    [filename, ..rest] -> {
+      let last = case file_stream.open_read(filename) {
+        Error(err) -> print_err(err, filename) |> fn(_) { start - 1 }
+        Ok(stream) -> {
+          let last = print_filesteam(stream, number, start)
+          file_stream.close(stream)
+          |> result.map_error(io.debug)
+          |> fn(_) { last }
+        }
+      }
+      print_files(rest, number, last + 1)
     }
   }
 }
@@ -45,23 +50,20 @@ fn print_err(err: file_stream_error.FileStreamError, filename: String) {
   |> io.println
 }
 
-fn print_filesteam(stream: file_stream.FileStream, number: Bool) {
-  print_filesteam_loop(stream, number, 1)
-}
-
-fn print_filesteam_loop(stream: file_stream.FileStream, number: Bool, l: Int) {
+fn print_filesteam(stream: file_stream.FileStream, number: Bool, l: Int) -> Int {
   case file_stream.read_line(stream) {
-    Error(file_stream_error.Eof) -> Nil
-    Error(err) -> Error(err) |> result.map_error(io.debug) |> result.unwrap(Nil)
+    Error(file_stream_error.Eof) -> l - 1
+    Error(err) -> err |> io.debug |> fn(_) { l - 1 }
     Ok(line) -> {
       io.print(case number {
-        True -> {
-          let l_str = int.to_string(l)
-          string.repeat(" ", 6 - string.length(l_str)) <> l_str <> "  " <> line
-        }
+        True -> l |> int.to_string |> format_with_number(line)
         False -> line
       })
-      print_filesteam_loop(stream, number, l + 1)
+      print_filesteam(stream, number, l + 1)
     }
   }
+}
+
+fn format_with_number(n: String, line: String) -> String {
+  string.repeat(" ", 6 - string.length(n)) <> n <> "  " <> line
 }
