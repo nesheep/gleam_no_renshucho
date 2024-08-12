@@ -42,24 +42,24 @@ fn print_files(files: List(String), number: Bool, start: Int) {
 }
 
 fn print_err(err: file_stream_error.FileStreamError, filename: String) {
-  case err {
-    file_stream_error.Eisdir -> filename <> " is a directory"
-    file_stream_error.Enoent -> filename <> " no such file or directory"
+  io.print("catg: ")
+  io.println(case err {
+    file_stream_error.Eisdir -> filename <> ": Is a directory"
+    file_stream_error.Enoent -> filename <> ": No such file or directory"
     _ -> "unknown error"
-  }
-  |> io.println
+  })
 }
 
-fn print_filesteam(stream: file_stream.FileStream, number: Bool, l: Int) -> Int {
+fn print_filesteam(stream: file_stream.FileStream, number: Bool, n: Int) -> Int {
   case file_stream.read_line(stream) {
-    Error(file_stream_error.Eof) -> l - 1
-    Error(err) -> err |> io.debug |> fn(_) { l - 1 }
+    Error(file_stream_error.Eof) -> n - 1
+    Error(err) -> err |> io.debug |> fn(_) { n - 1 }
     Ok(line) -> {
       io.print(case number {
-        True -> l |> int.to_string |> format_with_number(line)
+        True -> n |> int.to_string |> format_with_number(line)
         False -> line
       })
-      print_filesteam(stream, number, l + 1)
+      print_filesteam(stream, number, n + 1)
     }
   }
 }
