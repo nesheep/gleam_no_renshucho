@@ -21,6 +21,15 @@ type HeadError {
   ArgRequiredError(arg: String)
 }
 
+fn error_message(err: HeadError) -> String {
+  "headg: "
+  <> case err {
+    InvalidLinesError(arg) -> "invalid number of lines: '" <> arg <> "'"
+    InvalidBytesError(arg) -> "invalid number of bytes: '" <> arg <> "'"
+    ArgRequiredError(arg) -> "option requires an argument -- '" <> arg <> "'"
+  }
+}
+
 fn parse_args(args: List(String)) -> Result(Args, HeadError) {
   args_loop(args, Args([], None, None))
 }
@@ -29,7 +38,7 @@ fn args_loop(args: List(String), acc: Args) -> Result(Args, HeadError) {
   let Args(inputs:, lines:, bytes:) = acc
   case args {
     [] -> Ok(Args(list.reverse(inputs), lines, bytes))
-    ["-n", ..rest] -> {
+    ["-n", ..rest] ->
       case rest {
         [] -> Error(ArgRequiredError("n"))
         [first, ..rest] ->
@@ -38,8 +47,7 @@ fn args_loop(args: List(String), acc: Args) -> Result(Args, HeadError) {
             Ok(i) -> args_loop(rest, Args(inputs, Some(i), bytes))
           }
       }
-    }
-    ["-c", ..rest] -> {
+    ["-c", ..rest] ->
       case rest {
         [] -> Error(ArgRequiredError("c"))
         [first, ..rest] ->
@@ -48,7 +56,6 @@ fn args_loop(args: List(String), acc: Args) -> Result(Args, HeadError) {
             Ok(i) -> args_loop(rest, Args(inputs, lines, Some(i)))
           }
       }
-    }
     [first, ..rest] -> args_loop(rest, Args([first, ..inputs], lines, bytes))
   }
 }
@@ -62,6 +69,8 @@ fn parse_uint(a: String) -> Result(Int, Nil) {
 }
 
 pub fn main() {
-  let _ = argv.load().arguments |> parse_args |> io.debug
-  Nil
+  case argv.load().arguments |> parse_args {
+    Error(err) -> err |> error_message |> io.println
+    Ok(args) -> args |> io.debug |> fn(_) { Nil }
+  }
 }
