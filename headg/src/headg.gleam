@@ -2,7 +2,6 @@ import argv
 import file_streams/file_stream
 import file_streams/file_stream_error
 import gleam/bit_array
-import gleam/function
 import gleam/int
 import gleam/io
 import gleam/iterator
@@ -83,16 +82,30 @@ fn parse_uint(a: String) -> Result(Int, Nil) {
 
 fn run(args: Args) -> Nil {
   let Args(inputs, lines, bytes) = args
-  use input <- list.each(inputs)
-  // TODO: 複数ファイル指定された場合はファイル名表示
+  let len = list.length(inputs)
+
+  let iter = inputs |> iterator.from_list |> iterator.index
+  use #(input, i) <- iterator.each(iter)
   case file_stream.open_read(input) {
     Error(err) -> err |> map_file_error(input) |> error_message |> io.println
-    Ok(stream) ->
+    Ok(stream) -> {
+      // 複数ファイル指定の場合はファイル名表示
+      case len > 1 {
+        True -> io.println("==> " <> input <> " <==")
+        _ -> Nil
+      }
+      // メイン処理
+      print_steam(stream, lines, bytes)
+      // 最後のファイル以外は改行を挿入
+      case i != len - 1 {
+        True -> io.println("")
+        _ -> Nil
+      }
       stream
-      |> function.tap(print_steam(_, lines, bytes))
       |> file_stream.close
       |> result.map_error(io.debug)
       |> result.unwrap(Nil)
+    }
   }
 }
 
@@ -123,7 +136,7 @@ fn print_steam(
             Ok(s) -> s |> io.print
           }
       }
-    None -> {
+    None ->
       iterator.repeatedly(fn() {
         case stream |> file_stream.read_line {
           Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
@@ -134,7 +147,6 @@ fn print_steam(
       |> iterator.take(option.unwrap(lines, 10))
       |> iterator.take_while(fn(r) { r |> result.is_ok })
       |> iterator.run
-    }
   }
 }
 
