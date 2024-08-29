@@ -124,9 +124,11 @@ fn map_file_error(
   }
 }
 
+/// streamの先頭から指定したバイト数だけ出力する
+///
 fn print_bytes(stream: file_stream.FileStream, bytes: Int) -> Nil {
   case stream |> file_stream.read_bytes(bytes) {
-    Error(err) -> err |> debug
+    Error(err) -> err |> io.debug |> fn(_) { Nil }
     Ok(arr) ->
       // Stringへの変換でエラーになる場合は読めるところまで読む
       iterator.range(bit_array.byte_size(arr), 0)
@@ -145,6 +147,8 @@ fn print_bytes(stream: file_stream.FileStream, bytes: Int) -> Nil {
   }
 }
 
+/// streamの先頭から指定した行数だけ出力する
+///
 fn print_lines(stream: file_stream.FileStream, lines: Int) -> Nil {
   iterator.repeatedly(fn() {
     case stream |> file_stream.read_line {
@@ -156,10 +160,6 @@ fn print_lines(stream: file_stream.FileStream, lines: Int) -> Nil {
   |> iterator.take(lines)
   |> iterator.take_while(fn(r) { r |> result.is_ok })
   |> iterator.run
-}
-
-fn debug(term: anything) -> Nil {
-  term |> io.debug |> fn(_) { Nil }
 }
 
 pub fn main() {
