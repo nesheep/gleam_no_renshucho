@@ -13,9 +13,9 @@ type Args {
   Args(
     /// input file names
     inputs: List(String),
-    /// -n NUM
+    /// -n NUM lines
     lines: Option(Int),
-    /// -c NUM
+    /// -c NUM bytes
     bytes: Option(Int),
   )
 }
@@ -86,6 +86,7 @@ fn run(args: Args) -> Nil {
 
   let iter = inputs |> iterator.from_list |> iterator.index
   use #(input, i) <- iterator.each(iter)
+
   case file_stream.open_read(input) {
     Error(err) -> err |> map_file_error(input) |> error_message |> io.println
     Ok(stream) -> {
@@ -95,9 +96,12 @@ fn run(args: Args) -> Nil {
         _ -> Nil
       }
       // メイン処理
-      print_steam(stream, lines, bytes)
+      case bytes {
+        Some(b) -> print_bytes(stream, b)
+        None -> print_lines(stream, option.unwrap(lines, 10))
+      }
       // 最後のファイル以外は改行を挿入
-      case i != len - 1 {
+      case i < len - 1 {
         True -> io.println("")
         _ -> Nil
       }
@@ -120,34 +124,38 @@ fn map_file_error(
   }
 }
 
-fn print_steam(
-  stream: file_stream.FileStream,
-  lines: Option(Int),
-  bytes: Option(Int),
-) -> Nil {
-  case bytes {
-    Some(b) ->
-      case stream |> file_stream.read_bytes(b) {
-        Error(err) -> err |> debug
-        Ok(arr) ->
-          case arr |> bit_array.to_string {
-            // TODO: エラーの場合読めるところまで読む
-            Error(_) -> Nil
-            Ok(s) -> s |> io.print
-          }
-      }
-    None ->
-      iterator.repeatedly(fn() {
-        case stream |> file_stream.read_line {
-          Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
-          Error(err) -> Error(err) |> io.debug
-          Ok(s) -> Ok(s |> io.print)
-        }
+fn print_bytes(stream: file_stream.FileStream, bytes: Int) -> Nil {
+  case stream |> file_stream.read_bytes(bytes) {
+    Error(err) -> err |> debug
+    Ok(arr) ->
+      // Stringへの変換でエラーになる場合は読めるところまで読む
+      iterator.range(bit_array.byte_size(arr), 0)
+      |> iterator.map(fn(end) {
+        arr
+        |> bit_array.slice(0, end)
+        |> result.map(fn(a) {
+          a
+          |> bit_array.to_string
+          |> result.map(fn(s) { s |> io.print })
+        })
+        |> result.flatten
       })
-      |> iterator.take(option.unwrap(lines, 10))
-      |> iterator.take_while(fn(r) { r |> result.is_ok })
+      |> iterator.take_while(fn(r) { r |> result.is_error })
       |> iterator.run
   }
+}
+
+fn print_lines(stream: file_stream.FileStream, lines: Int) -> Nil {
+  iterator.repeatedly(fn() {
+    case stream |> file_stream.read_line {
+      Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
+      Error(err) -> Error(err) |> io.debug
+      Ok(s) -> Ok(s |> io.print)
+    }
+  })
+  |> iterator.take(lines)
+  |> iterator.take_while(fn(r) { r |> result.is_ok })
+  |> iterator.run
 }
 
 fn debug(term: anything) -> Nil {
