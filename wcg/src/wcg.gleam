@@ -1,5 +1,9 @@
 import argv
+import file_streams/file_stream
+import file_streams/file_stream_error
+import gleam/int
 import gleam/io
+import gleam/iterator
 import gleam/list
 import gleam/result
 
@@ -61,13 +65,69 @@ fn parse_args(args: List(String)) -> Result(Args, WcError) {
 }
 
 fn run(args: Args) -> Nil {
-  io.debug(args)
-  Nil
+  let Args(inputs, ..) = args
+
+  list.each(inputs, fn(input) {
+    case file_stream.open_read(input) {
+      Error(err) -> Error(err |> map_file_error(input))
+      Ok(stream) -> {
+        let res =
+          {
+            // count lines
+            let rl =
+              iterator.repeatedly(fn() {
+                case stream |> file_stream.read_line {
+                  Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
+                  Error(err) -> Ok(Error(err))
+                  Ok(_) -> Ok(Ok(1))
+                }
+              })
+              |> iterator.take_while(result.is_ok)
+              |> iterator.map(result.flatten)
+              |> iterator.try_fold(0, fn(acc, r) {
+                r |> result.map(fn(n) { acc + n })
+              })
+            use l <- result.map(rl)
+
+            #(l)
+          }
+          |> result.map_error(fn(err) { err |> as_unknown_error })
+
+        case stream |> file_stream.close {
+          Error(err) -> Error(err |> as_unknown_error)
+          Ok(_) -> Ok(res)
+        }
+      }
+    }
+    |> result.flatten
+    |> result.map_error(fn(err) { err |> error_message |> io.println_error })
+    |> result.map(fn(res) {
+      let #(l) = res
+      { int.to_string(l) <> " " <> input } |> io.println
+      #(l, input)
+    })
+  })
+}
+
+fn map_file_error(
+  err: file_stream_error.FileStreamError,
+  arg: String,
+) -> WcError {
+  case err {
+    file_stream_error.Eisdir -> IsDirError(arg)
+    file_stream_error.Enoent -> NoEntryError(arg)
+    _ -> UnknownError
+  }
+}
+
+fn as_unknown_error(err: a) -> WcError {
+  err |> io.debug
+  UnknownError
 }
 
 pub fn main() {
   case argv.load().arguments |> parse_args {
-    Error(err) -> err |> error_message |> io.println
+    Error(err) -> err |> error_message |> io.println_error
     Ok(args) -> args |> run
   }
 }
