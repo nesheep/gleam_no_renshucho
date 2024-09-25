@@ -6,6 +6,7 @@ import gleam/io
 import gleam/iterator
 import gleam/list
 import gleam/result
+import gleam/string
 
 type Args {
   Args(
@@ -72,27 +73,9 @@ fn run(args: Args) -> Nil {
       Error(err) -> Error(err |> map_file_error(input))
       Ok(stream) -> {
         let res =
-          {
-            // count lines
-            let rl =
-              iterator.repeatedly(fn() {
-                case stream |> file_stream.read_line {
-                  Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
-                  Error(err) -> Ok(Error(err))
-                  Ok(_) -> Ok(Ok(1))
-                }
-              })
-              |> iterator.take_while(result.is_ok)
-              |> iterator.map(result.flatten)
-              |> iterator.try_fold(0, fn(acc, r) {
-                r |> result.map(fn(n) { acc + n })
-              })
-            use l <- result.map(rl)
-
-            #(l)
-          }
+          stream
+          |> count
           |> result.map_error(fn(err) { err |> as_unknown_error })
-
         case stream |> file_stream.close {
           Error(err) -> Error(err |> as_unknown_error)
           Ok(_) -> Ok(res)
@@ -102,11 +85,85 @@ fn run(args: Args) -> Nil {
     |> result.flatten
     |> result.map_error(fn(err) { err |> error_message |> io.println_error })
     |> result.map(fn(res) {
-      let #(l) = res
-      { int.to_string(l) <> " " <> input } |> io.println
-      #(l, input)
+      let #(l, w, b, c) = res
+      let counts = #(l, w, b, c, input)
+      counts |> format_output |> io.println
+      counts
     })
   })
+}
+
+fn count(
+  stream: file_stream.FileStream,
+) -> Result(#(Int, Int, Int, Int), file_stream_error.FileStreamError) {
+  {
+    use l <- result.map(stream |> count_lines)
+    use _ <- result.map(stream |> stream_position_zero)
+    use w <- result.map(stream |> count_words)
+    use _ <- result.map(stream |> stream_position_zero)
+    #(l, w, 0, 0)
+  }
+  |> result.flatten
+  |> result.flatten
+  |> result.flatten
+}
+
+fn count_lines(
+  stream: file_stream.FileStream,
+) -> Result(Int, file_stream_error.FileStreamError) {
+  iterator.repeatedly(fn() {
+    case stream |> file_stream.read_line {
+      Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
+      Error(err) -> Ok(Error(err))
+      Ok(_) -> Ok(Ok(1))
+    }
+  })
+  |> iterator.take_while(result.is_ok)
+  |> iterator.map(result.flatten)
+  |> iterator.try_fold(0, fn(acc, r) { r |> result.map(fn(n) { acc + n }) })
+}
+
+fn count_words(
+  stream: file_stream.FileStream,
+) -> Result(Int, file_stream_error.FileStreamError) {
+  iterator.repeatedly(fn() {
+    case stream |> file_stream.read_line {
+      Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
+      Error(err) -> Ok(Error(err))
+      Ok(line) -> Ok(Ok(line))
+    }
+  })
+  |> iterator.take_while(result.is_ok)
+  |> iterator.map(result.flatten)
+  |> iterator.try_fold(0, fn(acc, r) {
+    result.map(r, fn(line) {
+      let n =
+        line
+        |> string.trim
+        |> string.split(" ")
+        |> list.count(fn(word) { word != "" })
+      acc + n
+    })
+  })
+}
+
+fn stream_position_zero(
+  stream: file_stream.FileStream,
+) -> Result(Int, file_stream_error.FileStreamError) {
+  stream |> file_stream.position(file_stream.BeginningOfFile(0))
+}
+
+fn format_output(counts: #(Int, Int, Int, Int, String)) -> String {
+  let #(l, w, b, c, input) = counts
+  int.to_string(l)
+  <> " "
+  <> int.to_string(w)
+  <> " "
+  <> int.to_string(c)
+  <> " "
+  <> int.to_string(b)
+  <> " "
+  <> input
 }
 
 fn map_file_error(
