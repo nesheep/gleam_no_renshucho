@@ -106,21 +106,15 @@ fn count(
   stream: file_stream.FileStream,
 ) -> Result(#(Int, Int, Int, Int), WcError) {
   {
-    use l <- result.map(stream |> count_lines)
-    use _ <- result.map(stream |> stream_position_zero)
-    use w <- result.map(stream |> count_words)
-    use _ <- result.map(stream |> stream_position_zero)
-    use c <- result.map(stream |> count_chars)
-    use _ <- result.map(stream |> stream_position_zero)
-    use b <- result.map(stream |> count_bytes)
-    #(l, w, c, b)
+    use l <- result.try(stream |> count_lines)
+    use _ <- result.try(stream |> stream_position_zero)
+    use w <- result.try(stream |> count_words)
+    use _ <- result.try(stream |> stream_position_zero)
+    use c <- result.try(stream |> count_chars)
+    use _ <- result.try(stream |> stream_position_zero)
+    use b <- result.try(stream |> count_bytes)
+    Ok(#(l, w, c, b))
   }
-  |> result.flatten
-  |> result.flatten
-  |> result.flatten
-  |> result.flatten
-  |> result.flatten
-  |> result.flatten
   |> result.map_error(fn(err) { err |> as_unknown_error })
 }
 
