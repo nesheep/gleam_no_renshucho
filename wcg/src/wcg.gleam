@@ -69,26 +69,37 @@ fn parse_args(args: List(String)) -> Result(Args, WcError) {
 fn run(args: Args) -> Nil {
   let Args(inputs, ..) = args
 
-  list.each(inputs, fn(input) {
-    case file_stream.open_read(input) {
-      Error(err) -> Error(err |> map_file_error(input))
-      Ok(stream) -> {
-        let res = stream |> count
-        case stream |> file_stream.close {
-          Error(err) -> Error(err |> as_unknown_error)
-          Ok(_) -> Ok(res)
+  let results =
+    list.map(inputs, fn(input) {
+      case file_stream.open_read(input) {
+        Error(err) -> Error(err |> map_file_error(input))
+        Ok(stream) -> {
+          let res = stream |> count
+          case stream |> file_stream.close {
+            Error(err) -> Error(err |> as_unknown_error)
+            Ok(_) -> Ok(res)
+          }
         }
       }
-    }
-    |> result.flatten
-    |> result.map_error(fn(err) { err |> error_message |> io.println_error })
-    |> result.map(fn(res) {
-      let #(l, w, c, b) = res
-      let counts = #(l, w, c, b, input)
-      counts |> format_output(args) |> io.println
-      counts
+      |> result.flatten
+      |> result.map_error(fn(err) { err |> error_message |> io.println_error })
+      |> result.map(fn(res) {
+        let #(l, w, c, b) = res
+        #(l, w, c, b, input) |> format_output(args) |> io.println
+        res
+      })
     })
-  })
+
+  let #(tl, tw, tc, tb) =
+    results
+    |> list.map(result.unwrap(_, #(0, 0, 0, 0)))
+    |> list.fold(#(0, 0, 0, 0), fn(acc, r) {
+      let #(al, aw, ac, ab) = acc
+      let #(l, w, c, b) = r
+      #(al + l, aw + w, ac + c, ab + b)
+    })
+
+  #(tl, tw, tc, tb, "total") |> format_output(args) |> io.println
 }
 
 fn count(
