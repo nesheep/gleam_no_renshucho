@@ -1,6 +1,7 @@
 import argv
 import file_streams/file_stream
 import file_streams/file_stream_error
+import gleam/bit_array
 import gleam/int
 import gleam/io
 import gleam/iterator
@@ -100,8 +101,10 @@ fn count(
     use _ <- result.map(stream |> stream_position_zero)
     use c <- result.map(stream |> count_chars)
     use _ <- result.map(stream |> stream_position_zero)
-    #(l, w, c, 0)
+    use b <- result.map(stream |> count_bytes)
+    #(l, w, c, b)
   }
+  |> result.flatten
   |> result.flatten
   |> result.flatten
   |> result.flatten
@@ -163,6 +166,23 @@ fn count_chars(
   |> iterator.map(result.flatten)
   |> iterator.try_fold(0, fn(acc, r) {
     result.map(r, fn(line) { acc + string.length(line) })
+  })
+}
+
+fn count_bytes(
+  stream: file_stream.FileStream,
+) -> Result(Int, file_stream_error.FileStreamError) {
+  iterator.repeatedly(fn() {
+    case stream |> file_stream.read_bytes(256) {
+      Error(file_stream_error.Eof) -> Error(file_stream_error.Eof)
+      Error(err) -> Ok(Error(err))
+      Ok(ba) -> Ok(Ok(ba))
+    }
+  })
+  |> iterator.take_while(result.is_ok)
+  |> iterator.map(result.flatten)
+  |> iterator.try_fold(0, fn(acc, r) {
+    result.map(r, fn(ba) { acc + bit_array.byte_size(ba) })
   })
 }
 
